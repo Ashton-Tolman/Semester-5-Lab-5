@@ -1,7 +1,7 @@
 // Ashton Tolman
 // RCET3373
-// Lab4PICpt3
-// https://github.com/Ashton-Tolman/Semester-5-Lab-4.git
+// Lab5PICpt1
+// https://github.com/Ashton-Tolman/Semester-5-Lab-5.git
 // linker code:-Wl,-presetVect=0000h,-pisrVect=0004h,-pcode=0008h
 
 ; PIC16F883 Configuration Bit Settings
@@ -27,10 +27,9 @@
 // config statements should precede project file includes.
 #include <xc.inc>
 
-outCount    EQU 0x20	;use data memory address 0x20 as an 8-bit loop counter 
-inCount	    EQU 0x21	;use data memory address 0x21 as an 8-bit loop counter
-tableAddress EQU 0x22   ;use data memory address 0x21 as a location for lookup 
-
+W_TEMP EQU 0x70		; Temporary W register in global GR
+STATUS_TEMP EQU 0x71	; Temporary Status register in global GR
+ 
 ; Reset Vector at 000h. Execution starts here after reset 
 PSECT resetVect,class=CODE,delta=2
 ResetVector:
@@ -40,7 +39,7 @@ ResetVector:
 ; Interrupt Vector at 0004h. Execution starts here after an interrupt.
 PSECT isrVect,class=CODE,delta=2
 InterruptVector:
-    goto IsrHandler
+    goto ISRHandler
     
 ; Main code section starts at 0008h. User code goes here
 PSECT code,class=CODE,delta=2
@@ -62,6 +61,8 @@ Setup:
     MOVLW 0x01	    ; Make W all highs
     MOVWF 0x86	    ; Move W to TrisB
     CLRF 0x87	    ; TrisC sets all portC pins as outputs
+    BCF 0x81, 6	    ; Make interrupts trigger on falling edges
+    BCF 0x81, 7	    ; Give PortB weak pull ups
 
 		    
     BCF  0x03, 06    ;
@@ -69,14 +70,38 @@ Setup:
     CLRF 0x06	    ; clear port B
     CLRF 0x05	    ; clear port A
     CLRF 0x07	    ; Clear portC
-
-    
 		    ; OPTION_REG RBPU-not is default high meaning disabled
 		    ; WPUB weak pull ups default disabled
-		    ; IOCB portB interrupt-on-change disabled default
+		    
+    ;Interrupt setup
+    CLRF 0x0B	    ; Clear INTCON to disable all interrupts by default
+    BSF 0x0B,4	    ; Enable External interrupts
+    BSF 0x0B,7	    ; Enable Global interrups
     goto Main
     
 
 Main:
+    MOVLW 0x01		; Put bit 0 high in W
+    XORWF 0x05		; Toggle bit 0 in PortA
     goto Main
+    
+ISRHandler:
+    MOVWF W_TEMP	;Copy W to TEMP register
+    SWAPF STATUS,0	;Swap status to be saved into W
+			;Swaps are used because they dont change the status bits
+    MOVWF STATUS_TEMP	;Save status to bank zero STATUS_TEMP register
+    goto InterruptChecks
+    
+InterruptChecks:
+    INCF 0x07,1		; Incremetns PortC
+    BCF 0x0B,1		; Clear the INT flag bit
+    goto LeaveHandler
+    
+LeaveHandler:
+    SWAPF STATUS_TEMP,0	;Swap STATUS_TEMP register into W
+			;(sets bank to original state)
+    MOVWF STATUS	;Move W into STATUS register
+    SWAPF W_TEMP,1	;Swap W_TEMP
+    SWAPF W_TEMP,0	;Swap W_TEMP into W
+    RETFIE		;Return from interupt at point of interruption+1
 End
