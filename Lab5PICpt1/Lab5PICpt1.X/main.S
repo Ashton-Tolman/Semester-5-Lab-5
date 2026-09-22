@@ -70,8 +70,7 @@ Setup:
     CLRF 0x06	    ; clear port B
     CLRF 0x05	    ; clear port A
     CLRF 0x07	    ; Clear portC
-		    ; OPTION_REG RBPU-not is default high meaning disabled
-		    ; WPUB weak pull ups default disabled
+		 
 		    
     ;Interrupt setup
     CLRF 0x0B	    ; Clear INTCON to disable all interrupts by default
