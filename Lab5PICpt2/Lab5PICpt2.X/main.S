@@ -53,32 +53,24 @@ Setup:
     
     BSF  0x03, 06    ;
     BCF  0x03, 5    ; Set bank 2 active
-    BSF  0x09, 1    ; Turn T1G-not function off
     
     BCF  0x03, 06    ;
     BSF  0x03, 05    ; Set bank 1 active 
     CLRF 0x85	    ; TrisA sets all portA pins as outputs
-    MOVLW 0x01	    ; Make W all highs
-    MOVWF 0x86	    ; Move W to TrisB
     CLRF 0x87	    ; TrisC sets all portC pins as outputs
     BCF 0x81, 6	    ; Make interrupts trigger on falling edges
-    BCF 0x81, 7	    ; Give PortB weak pull ups
+    BSF 0x96,4	    ; Enable IOC on bit 4
 
     BCF  0x03, 06    ;
     BCF  0x03, 05    ; Set bank 0 active
-    CLRF 0x06	    ; clear port B
-    CLRF 0x05	    ; clear port A
-    CLRF 0x07	    ; Clear portC
+    CLRF 0x05	    ; Clear port A
+    CLRF 0x07	    ; Clear port C
 		     
     ;Interrupt setup
-    BCF  0x03, 06    ;
-    BSF  0x03, 05    ; Set bank 1 active 
-    MOVLW 0xFF	    ; W all high
-    MOVWF 0x96	    ; IOCB to enable PortB interrupt on change
-    BSF 0x0B,3	    ; Enable PortB interrupt on change
     CLRF 0x0B	    ; Clear INTCON to disable all interrupts by default
-    BSF 0x0B,4	    ; Enable External interrupts
-    BSF 0x0B,7	    ; Enable Global interrups
+    BSF 0x8B,3	    ; Enable PortB interrupt on change
+    BSF 0x8B,4	    ; Enable External interrupts
+    BSF 0x8B,7	    ; Enable Global interrups
     
     BCF  0x03, 06    ;
     BCF  0x03, 05    ; Set bank 0 active
