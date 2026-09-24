@@ -1,6 +1,6 @@
 // Ashton Tolman
 // RCET3373
-// Lab5PICpt3
+// Lab5PICpt2
 // https://github.com/Ashton-Tolman/Semester-5-Lab-5.git
 // linker code:-Wl,-presetVect=0000h,-pisrVect=0004h,-pcode=0008h
 
@@ -29,9 +29,7 @@
 
 W_TEMP EQU 0x70		; Temporary W register in global GR
 STATUS_TEMP EQU 0x71	; Temporary Status register in global GR
-PB_OLD EQU 0x72		; Save the Pre-Interrupt state of PortB
-PB_NEW EQU 0x73		; Save the Post-Interrupt state of PortB
-PB_CHANGED EQU 0x074	; Save the PortB pin that changed
+ 
 ; Reset Vector at 000h. Execution starts here after reset 
 PSECT resetVect,class=CODE,delta=2
 ResetVector:
@@ -60,8 +58,8 @@ Setup:
     BSF  0x03, 05    ; Set bank 1 active 
     CLRF 0x85	    ; TrisA sets all portA pins as outputs
     CLRF 0x87	    ; TrisC sets all portC pins as outputs
-    MOVLW 0xFF	    ; Put all highs in W
-    MOVWF 0x96	    ; Enable IOC on all pins
+    BCF 0x81, 6	    ; Make interrupts trigger on falling edges
+    BSF 0x96,4	    ; Enable IOC on bit 4
 
     BCF  0x03, 06    ;
     BCF  0x03, 05    ; Set bank 0 active
@@ -71,6 +69,7 @@ Setup:
     ;Interrupt setup
     CLRF 0x0B	    ; Clear INTCON to disable all interrupts by default
     BSF 0x8B,3	    ; Enable PortB interrupt on change
+    BSF 0x8B,4	    ; Enable External interrupts
     BSF 0x8B,7	    ; Enable Global interrups
     
     BCF  0x03, 06    ;
@@ -79,10 +78,8 @@ Setup:
     
 
 Main:
-    MOVLW 0x80		; Put bit 7 high in W
-    XORWF 0x05		; Toggle bit 7 in PortA
-    MOVLW 0x31		; Put display code for "1" in W
-    MOVWF 0x07		; Display 1 on PortC
+    MOVLW 0x01		; Put bit 0 high in W
+    XORWF 0x05		; Toggle bit 0 in PortA
     goto Main
     
 ISRHandler:
@@ -91,26 +88,22 @@ ISRHandler:
 			    ;Swaps are used because they dont change the status bits
     MOVWF STATUS_TEMP	    ;Save status to bank zero STATUS_TEMP register
     
+    BTFSC INTCON,1	    ;Test the INT external flag
+    goto INTExternalService ;if the flag is up go to service
     BTFSC INTCON,0	    ;Test the IOCPortB flag
     goto IOCPORTBService    ;if the flag is up go to service
     goto LeaveHandler
     
+INTExternalService:
+    CLRF 0x07		    ;Clear PortC
+    BCF INTCON,1	    ;Clear the INTExternal flag
+    goto LeaveHandler
+    
 IOCPORTBService:
-    MOVF PORTB,W	    ; Put the New portB state into W
-    MOVWF PB_NEW	    ; Put new portB state into general register
-    XORWF PB_OLD,W	    ; Detect changed bit against old portB state
-    
-    MOVWF PB_CHANGED	    ; Put changed pin into general register
-    MOVF PB_NEW,W	    ; Put new portB state into W
-    MOVWF PB_OLD	    ; Update Old general register with new state
-    
-    Call TestingTable	    ; Testing table is a testing lookup table function
-    
-    
-    
-    FinalService:
-    BCF INTCON,0	    ; Clear PortBIOC flag
-    goto LeaveHandler	    ; 
+    MOVF 0x06,0
+    INCF 0x07,1
+    BCF INTCON,0
+    goto LeaveHandler
     
 LeaveHandler:
     SWAPF STATUS_TEMP,0	    ;Swap STATUS_TEMP register into W
