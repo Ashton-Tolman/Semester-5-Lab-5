@@ -94,19 +94,41 @@ ISRHandler:
     goto LeaveHandler
     
 IOCPORTBService:
-    MOVF PORTB,W	    ;
-    MOVWF PB_NEW	    ;
-    XORWF PB_OLD,W	    ;
+    MOVF PORTB,W	    ; Put the New portB state into W
+    MOVWF PB_NEW	    ; Put new portB state into general register
+    XORWF PB_OLD,W	    ; Detect changed bit against old portB state
     
-    MOVWF PB_CHANGED	    ;
-    MOVF PB_NEW,W
-    MOVWF PB_OLD
+    MOVWF PB_CHANGED	    ; Put changed pin into general register
+    MOVF PB_NEW,W	    ; Put new portB state into W
+    MOVWF PB_OLD	    ; Update Old general register with new state
     
-    PB_OLD
-    PB_NEW
-    PB_CHANGED
-    BCF INTCON,0
-    goto LeaveHandler
+    Call TestingTable	    ; Testing table is a testing lookup table function
+    
+    SetPin:
+    MOVWF PORTA		    ; Set PortA three LED output based on W
+    goto FinalService	    
+    
+    TestingTable:
+    BTFSC PB_CHANGED,0	    ; Test RB0 for high, return if high
+    RETLW 0x00		    ; Return with 0 in W
+    BTFSC PB_CHANGED,1	    ; Test RB1 for high, return if high
+    RETLW 0x01		    ; Return with 1 in W
+    BTFSC PB_CHANGED,2	    ; Test RB2 for high, return if high
+    RETLW 0x02		    ; Return with 2 in W
+    BTFSC PB_CHANGED,3	    ; Test RB3 for high, return if high
+    RETLW 0x03		    ; Return with 3 in W
+    BTFSC PB_CHANGED,4	    ; Test RB4 for high, return if high
+    RETLW 0x04		    ; Return with 4 in W
+    BTFSC PB_CHANGED,5	    ; Test RB5 for high, return if high
+    RETLW 0x05		    ; Return with 5 in W
+    BTFSC PB_CHANGED,6	    ; Test RB6 for high, return if high
+    RETLW 0x06		    ; Return with 6 in W
+    BTFSC PB_CHANGED,7	    ; Test RB7 for high, return if high
+    RETLW 0x07		    ; Return with 7 in W
+    
+    FinalService:
+    BCF INTCON,0	    ; Clear PortBIOC flag
+    goto LeaveHandler	    ; 
     
 LeaveHandler:
     SWAPF STATUS_TEMP,0	    ;Swap STATUS_TEMP register into W
