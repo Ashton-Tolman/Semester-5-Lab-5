@@ -81,8 +81,6 @@ Setup:
 Main:
     MOVLW 0x80		; Put bit 7 high in W
     XORWF 0x05		; Toggle bit 7 in PortA
-    MOVLW 0x31		; Put display code for "1" in W
-    MOVWF 0x07		; Display 1 on PortC
     goto Main
     
 ISRHandler:
