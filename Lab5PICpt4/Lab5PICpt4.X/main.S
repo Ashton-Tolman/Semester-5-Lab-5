@@ -36,9 +36,12 @@ STATUS_TEMP_B EQU 0x73	; Temporary Status register in global GR B
 INTDetected EQU 0x74	; Global GR to detect 6 or 1
 OldDisplay EQU	0x75	; Old display things for 7
  
-outCount EQU 0x76	; Count for outer delay loop
-inCount EQU 0x77	; Count for inner delay loop
-mainCount EQU 0x78	; Count for main delay loop
+outCount6 EQU 0x76	; Count for outer delay loop
+inCount6 EQU 0x77	; Count for inner delay loop
+mainCount6 EQU 0x78	; Count for main delay loop
+outCount7 EQU 0x79	; Count for outer delay loop
+inCount7 EQU 0x7A	; Count for inner delay loop
+mainCount7 EQU 0x7B	; Count for main delay loop
  
 ; Reset Vector at 000h. Execution starts here after reset 
 PSECT resetVect,class=CODE,delta=2
@@ -105,7 +108,6 @@ ISRHandler:
     SWAPF STATUS,0	    ;Swap status to be saved into W
 			    ;Swaps are used because they dont change the status bits
     MOVWF STATUS_TEMP_A	    ;Save status to bank zero STATUS_TEMP register
-    BSF INTDetected,0	    ;If it was a 6 INT, set GR bit to indicate
     goto INTExternalService ;if the flag is up go to service  
     
     Context7:
@@ -120,11 +122,13 @@ INTExternalService:
     BCF INTCON,4
     BSF INTCON,7
 
+
     MOVLW 0x36
     MOVWF 0x07
     
-    CALL Delay_2Sec
-    
+    CALL Delay_2Sec6
+    BSF INTDetected,0	    ;If it was a 6 INT, set GR bit to indicate
+
     goto LeaveHandler
     
 IOCPORTBService:
@@ -136,10 +140,11 @@ IOCPORTBService:
     MOVLW 0x37
     MOVWF 0x07
     
-    CALL Delay_2Sec
+    CALL Delay_2Sec7
     
     MOVF OldDisplay,W
     MOVWF PORTC
+    
     
     BCF INTCON,0
     goto LeaveHandler
@@ -168,26 +173,48 @@ LeaveHandler:
     SWAPF W_TEMP_B,0	    ;Swap W_TEMP into W
     RETFIE		    ;Return from interupt at point of interruption+1
     
-Delay_2Sec:
+Delay_2Sec6:
 	MOVLW 0x1F		;1 TCY delay overhead
-	MOVWF mainCount	;1 TCY delay overhead
-    MainDelay:
+	MOVWF mainCount6	;1 TCY delay overhead
+    MainDelay6:
 	MOVLW 0x90		;1 TCY delay overhead
-	MOVWF outCount	;1 TCY delay overhead
+	MOVWF outCount6	;1 TCY delay overhead
     
-    OutDelay:
+    OutDelay6:
 	MOVLW 0x94		;1 TCY delay overhead
-	MOVWF inCount	;1 TCY delay overhead
+	MOVWF inCount6	;1 TCY delay overhead
     
-    InDelay:    
-	DECFSZ inCount,1	;1(2) 1 TCY if not zero, 2 TCY if zero
-	goto InDelay	;2 TCY
+    InDelay6:    
+	DECFSZ inCount6,1	;1(2) 1 TCY if not zero, 2 TCY if zero
+	goto InDelay6	;2 TCY
     
-	DECFSZ outCount,1	;1(2) 1TCY if not zero, 2 TCY if zero
-	goto OutDelay	;2 TCY
+	DECFSZ outCount6,1	;1(2) 1TCY if not zero, 2 TCY if zero
+	goto OutDelay6	;2 TCY
 	
-	DECFSZ mainCount,1	;1(2) 1TCY if not zero, 2 TCY if zero
-	goto MainDelay	;2 TCY
+	DECFSZ mainCount6,1	;1(2) 1TCY if not zero, 2 TCY if zero
+	goto MainDelay6	;2 TCY
+    
+	RETURN
+Delay_2Sec7:
+	MOVLW 0x1E		;1 TCY delay overhead
+	MOVWF mainCount7	;1 TCY delay overhead
+    MainDelay7:
+	MOVLW 0x90		;1 TCY delay overhead
+	MOVWF outCount7	;1 TCY delay overhead
+    
+    OutDelay7:
+	MOVLW 0x94		;1 TCY delay overhead
+	MOVWF inCount7	;1 TCY delay overhead
+    
+    InDelay7:    
+	DECFSZ inCount7,1	;1(2) 1 TCY if not zero, 2 TCY if zero
+	goto InDelay7	;2 TCY
+    
+	DECFSZ outCount7,1	;1(2) 1TCY if not zero, 2 TCY if zero
+	goto OutDelay7	;2 TCY
+	
+	DECFSZ mainCount7,1	;1(2) 1TCY if not zero, 2 TCY if zero
+	goto MainDelay7	;2 TCY
     
 	RETURN
 End
