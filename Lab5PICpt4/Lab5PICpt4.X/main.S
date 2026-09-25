@@ -27,8 +27,18 @@
 // config statements should precede project file includes.
 #include <xc.inc>
 
-W_TEMP EQU 0x70		; Temporary W register in global GR
-STATUS_TEMP EQU 0x71	; Temporary Status register in global GR
+W_TEMP_A EQU 0x70	; Temporary W register in global GR A
+STATUS_TEMP_A EQU 0x71	; Temporary Status register in global GR A
+ 
+W_TEMP_B EQU 0x72	; Temporary W register in global GR B
+STATUS_TEMP_B EQU 0x73	; Temporary Status register in global GR B
+
+INTDetected EQU 0x74	; Global GR to detect 6 or 1
+OldDisplay EQU	0x75	; Old display things for 7
+ 
+outCount EQU 0x76	; Count for outer delay loop
+inCount EQU 0x77	; Count for inner delay loop
+mainCount EQU 0x78	; Count for main delay loop
  
 ; Reset Vector at 000h. Execution starts here after reset 
 PSECT resetVect,class=CODE,delta=2
@@ -46,70 +56,138 @@ PSECT code,class=CODE,delta=2
 
 Setup:
     ; add device setup here
-    BSF  0x03, 06    ;
-    BSF  0x03, 05    ; Set bank 3 active
-    CLRF 0x189	    ; ANSELH analog/digital select portB pins as digital
-    CLRF 0x188	    ; ANSEL analog/digital select portA pins as digital
+    BSF  0x03, 06	;
+    BSF  0x03, 05	; Set bank 3 active
+    CLRF 0x189		; ANSELH analog/digital select portB pins as digital
+    CLRF 0x188		; ANSEL analog/digital select portA pins as digital
     
-    BSF  0x03, 06    ;
-    BCF  0x03, 5    ; Set bank 2 active
+    BSF  0x03, 06	;
+    BCF  0x03, 5	; Set bank 2 active
     
-    BCF  0x03, 06    ;
-    BSF  0x03, 05    ; Set bank 1 active 
-    CLRF 0x85	    ; TrisA sets all portA pins as outputs
-    CLRF 0x87	    ; TrisC sets all portC pins as outputs
-    BCF 0x81, 6	    ; Make interrupts trigger on falling edges
-    BSF 0x96,4	    ; Enable IOC on bit 4
+    BCF  0x03, 06	;
+    BSF  0x03, 05	; Set bank 1 active 
+    CLRF 0x85		; TrisA sets all portA pins as outputs
+    CLRF 0x87		; TrisC sets all portC pins as outputs
+    BCF 0x81, 6		; Make interrupts trigger on falling edges
+    BSF 0x96,1		; Enable IOC on bit 1
 
-    BCF  0x03, 06    ;
-    BCF  0x03, 05    ; Set bank 0 active
-    CLRF 0x05	    ; Clear port A
-    CLRF 0x07	    ; Clear port C
+    BCF  0x03, 06	;
+    BCF  0x03, 05	; Set bank 0 active
+    CLRF 0x05		; Clear port A
+    CLRF 0x07		; Clear port C
 		     
     ;Interrupt setup
-    CLRF 0x0B	    ; Clear INTCON to disable all interrupts by default
-    BSF 0x8B,3	    ; Enable PortB interrupt on change
-    BSF 0x8B,4	    ; Enable External interrupts
-    BSF 0x8B,7	    ; Enable Global interrups
+    CLRF 0x0B		; Clear INTCON to disable all interrupts by default
+    BCF INTDetected,0	; Clear the 6 or 1 indicator
+    BSF 0x8B,3		; Enable PortB interrupt on change
+    BSF 0x8B,4		; Enable External interrupts
+    BSF 0x8B,7		; Enable Global interrups
     
-    BCF  0x03, 06    ;
-    BCF  0x03, 05    ; Set bank 0 active
+    BCF  0x03, 06	;
+    BCF  0x03, 05	; Set bank 0 active
     goto Main
     
 
 Main:
-    MOVLW 0x01		; Put bit 0 high in W
-    XORWF 0x05		; Toggle bit 0 in PortA
+    MOVLW 0x31		; Put display code for "1" in W
+    MOVWF 0x07		; Display 1 on PortC
+    MOVLW 0x01
+    XORWF 0x05
     goto Main
     
 ISRHandler:
-    MOVWF W_TEMP	    ;Copy W to TEMP register
+    BTFSC INTCON,0	    ;IOC flag test
+    goto Context7	    ;Save context for a 7 interrupt
+			    ;If not 7 save context for 6 interrupt
+    
+    Context6:
+    MOVWF W_TEMP_A	    ;Copy W to TEMP register
     SWAPF STATUS,0	    ;Swap status to be saved into W
 			    ;Swaps are used because they dont change the status bits
-    MOVWF STATUS_TEMP	    ;Save status to bank zero STATUS_TEMP register
+    MOVWF STATUS_TEMP_A	    ;Save status to bank zero STATUS_TEMP register
+    BSF INTDetected,0	    ;If it was a 6 INT, set GR bit to indicate
+    goto INTExternalService ;if the flag is up go to service  
     
-    BTFSC INTCON,1	    ;Test the INT external flag
-    goto INTExternalService ;if the flag is up go to service
-    BTFSC INTCON,0	    ;Test the IOCPortB flag
+    Context7:
+    MOVWF W_TEMP_B	    ;Copy W to TEMP register
+    SWAPF STATUS,0	    ;Swap status to be saved into W
+			    ;Swaps are used because they dont change the status bits
+    MOVWF STATUS_TEMP_B	    ;Save status to bank zero STATUS_TEMP register
     goto IOCPORTBService    ;if the flag is up go to service
-    goto LeaveHandler
     
 INTExternalService:
-    CLRF 0x07		    ;Clear PortC
-    BCF INTCON,1	    ;Clear the INTExternal flag
+    BCF INTCON,1
+    BCF INTCON,4
+    BSF INTCON,7
+
+    MOVLW 0x36
+    MOVWF 0x07
+    
+    CALL Delay_2Sec
+    
     goto LeaveHandler
     
 IOCPORTBService:
-    MOVF 0x06,0
-    INCF 0x07,1
+    BCF INTCON,7
+    MOVF PORTB,W
+    MOVF PORTC,W
+    MOVWF OldDisplay
+    
+    MOVLW 0x37
+    MOVWF 0x07
+    
+    CALL Delay_2Sec
+    
+    MOVF OldDisplay,W
+    MOVWF PORTC
+    
     BCF INTCON,0
     goto LeaveHandler
     
 LeaveHandler:
-    SWAPF STATUS_TEMP,0	    ;Swap STATUS_TEMP register into W
+    BTFSS INTDetected,0	    ;IOC flag test
+    goto LeaveHandler7	    ;Load context for a 7 interrupt
+			    ;If not 7 Load context for 6 interrupt
+    
+    
+    LeaveHandler6:
+    BCF INTDetected,0
+    BSF INTCON,4
+    SWAPF STATUS_TEMP_A,0	    ;Swap STATUS_TEMP register into W
 			    ;(sets bank to original state)
     MOVWF STATUS	    ;Move W into STATUS register
-    SWAPF W_TEMP,1	    ;Swap W_TEMP
-    SWAPF W_TEMP,0	    ;Swap W_TEMP into W
+    SWAPF W_TEMP_A,1	    ;Swap W_TEMP
+    SWAPF W_TEMP_A,0	    ;Swap W_TEMP into W
     RETFIE		    ;Return from interupt at point of interruption+1
+    
+    LeaveHandler7:
+    SWAPF STATUS_TEMP_B,0	    ;Swap STATUS_TEMP register into W
+			    ;(sets bank to original state)
+    MOVWF STATUS	    ;Move W into STATUS register
+    SWAPF W_TEMP_B,1	    ;Swap W_TEMP
+    SWAPF W_TEMP_B,0	    ;Swap W_TEMP into W
+    RETFIE		    ;Return from interupt at point of interruption+1
+    
+Delay_2Sec:
+	MOVLW 0x1F		;1 TCY delay overhead
+	MOVWF mainCount	;1 TCY delay overhead
+    MainDelay:
+	MOVLW 0x90		;1 TCY delay overhead
+	MOVWF outCount	;1 TCY delay overhead
+    
+    OutDelay:
+	MOVLW 0x94		;1 TCY delay overhead
+	MOVWF inCount	;1 TCY delay overhead
+    
+    InDelay:    
+	DECFSZ inCount,1	;1(2) 1 TCY if not zero, 2 TCY if zero
+	goto InDelay	;2 TCY
+    
+	DECFSZ outCount,1	;1(2) 1TCY if not zero, 2 TCY if zero
+	goto OutDelay	;2 TCY
+	
+	DECFSZ mainCount,1	;1(2) 1TCY if not zero, 2 TCY if zero
+	goto MainDelay	;2 TCY
+    
+	RETURN
 End
