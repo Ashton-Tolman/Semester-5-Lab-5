@@ -94,8 +94,8 @@ Setup:
 Main:
     MOVLW 0x31		; Put display code for "1" in W
     MOVWF 0x07		; Display 1 on PortC
-    MOVLW 0x01
-    XORWF 0x05
+    MOVLW 0x01		; Select Bit 1 in W
+    XORWF 0x05		; Toggle RA0
     goto Main
     
 ISRHandler:
@@ -118,36 +118,38 @@ ISRHandler:
     goto IOCPORTBService    ;if the flag is up go to service
     
 INTExternalService:
-    BCF INTCON,1
-    BCF INTCON,4
-    BSF INTCON,7
+    BCF INTCON,1	    ;Clear INT flag
+    BCF INTCON,4	    ;Turn INT off so 6 cant interrupt 6
+    BSF INTCON,7	    ;Turn Global interrupts on
 
 
-    MOVLW 0x36
-    MOVWF 0x07
+    MOVLW 0x36		    ;Put display code for 6 in W
+    MOVWF 0x07		    ;Display 6 on PortC
     
-    CALL Delay_2Sec6
+    CALL Delay_2Sec6	    ;Call 2 second delay
     BSF INTDetected,0	    ;If it was a 6 INT, set GR bit to indicate
 
-    goto LeaveHandler
+    goto LeaveHandler	    
     
 IOCPORTBService:
-    BCF INTCON,7
-    MOVF PORTB,W
-    MOVF PORTC,W
-    MOVWF OldDisplay
+    BCF INTCON,7	    ;ReEstablish Globals off so 7 cant be interrupted
+    MOVF PORTB,W	    ;Dummy check PortB for IOC
+    BTFSC PORTB,1	    ;Test RB1 to make sure it cant trigger on a rising edge
+    goto IOC_Ignore	    ;If RB1 is high 7 will not run for 2 more seconds
+    MOVF PORTC,W	    ;Put current display state in W
+    MOVWF OldDisplay	    ;Store old display state
     
-    MOVLW 0x37
-    MOVWF 0x07
+    MOVLW 0x37		    ;Move display code for 7 in W
+    MOVWF 0x07		    ;Display 7 on PortC
     
-    CALL Delay_2Sec7
+    CALL Delay_2Sec7	    ;Call 2 second delay
     
-    MOVF OldDisplay,W
-    MOVWF PORTC
+    MOVF OldDisplay,W	    ;After 7 move previous display to W
+    MOVWF PORTC		    ;Display previous state
     
-    
-    BCF INTCON,0
-    goto LeaveHandler
+    IOC_Ignore:
+    BCF INTCON,0	    ;Clear IOC flag
+    goto LeaveHandler	    
     
 LeaveHandler:
     BTFSS INTDetected,0	    ;IOC flag test
@@ -156,9 +158,9 @@ LeaveHandler:
     
     
     LeaveHandler6:
-    BCF INTDetected,0
-    BSF INTCON,4
-    SWAPF STATUS_TEMP_A,0	    ;Swap STATUS_TEMP register into W
+    BCF INTDetected,0	    ;Clear the is 6 flag in GR
+    BSF INTCON,4	    ;Turn on INT so 6 can fire again if needed
+    SWAPF STATUS_TEMP_A,0   ;Swap STATUS_TEMP register into W
 			    ;(sets bank to original state)
     MOVWF STATUS	    ;Move W into STATUS register
     SWAPF W_TEMP_A,1	    ;Swap W_TEMP
@@ -166,7 +168,7 @@ LeaveHandler:
     RETFIE		    ;Return from interupt at point of interruption+1
     
     LeaveHandler7:
-    SWAPF STATUS_TEMP_B,0	    ;Swap STATUS_TEMP register into W
+    SWAPF STATUS_TEMP_B,0   ;Swap STATUS_TEMP register into W
 			    ;(sets bank to original state)
     MOVWF STATUS	    ;Move W into STATUS register
     SWAPF W_TEMP_B,1	    ;Swap W_TEMP
@@ -178,21 +180,21 @@ Delay_2Sec6:
 	MOVWF mainCount6	;1 TCY delay overhead
     MainDelay6:
 	MOVLW 0x90		;1 TCY delay overhead
-	MOVWF outCount6	;1 TCY delay overhead
+	MOVWF outCount6		;1 TCY delay overhead
     
     OutDelay6:
 	MOVLW 0x94		;1 TCY delay overhead
-	MOVWF inCount6	;1 TCY delay overhead
+	MOVWF inCount6		;1 TCY delay overhead
     
     InDelay6:    
 	DECFSZ inCount6,1	;1(2) 1 TCY if not zero, 2 TCY if zero
-	goto InDelay6	;2 TCY
+	goto InDelay6		;2 TCY
     
 	DECFSZ outCount6,1	;1(2) 1TCY if not zero, 2 TCY if zero
-	goto OutDelay6	;2 TCY
+	goto OutDelay6		;2 TCY
 	
 	DECFSZ mainCount6,1	;1(2) 1TCY if not zero, 2 TCY if zero
-	goto MainDelay6	;2 TCY
+	goto MainDelay6		;2 TCY
     
 	RETURN
 Delay_2Sec7:
@@ -200,21 +202,21 @@ Delay_2Sec7:
 	MOVWF mainCount7	;1 TCY delay overhead
     MainDelay7:
 	MOVLW 0x90		;1 TCY delay overhead
-	MOVWF outCount7	;1 TCY delay overhead
+	MOVWF outCount7		;1 TCY delay overhead
     
     OutDelay7:
 	MOVLW 0x94		;1 TCY delay overhead
-	MOVWF inCount7	;1 TCY delay overhead
+	MOVWF inCount7		;1 TCY delay overhead
     
     InDelay7:    
 	DECFSZ inCount7,1	;1(2) 1 TCY if not zero, 2 TCY if zero
-	goto InDelay7	;2 TCY
+	goto InDelay7		;2 TCY
     
 	DECFSZ outCount7,1	;1(2) 1TCY if not zero, 2 TCY if zero
-	goto OutDelay7	;2 TCY
+	goto OutDelay7		;2 TCY
 	
 	DECFSZ mainCount7,1	;1(2) 1TCY if not zero, 2 TCY if zero
-	goto MainDelay7	;2 TCY
+	goto MainDelay7		;2 TCY
     
 	RETURN
 End
